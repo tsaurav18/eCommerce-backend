@@ -1,14 +1,15 @@
 import hashlib
 import hmac
+from sqlite3 import IntegrityError
 
 import razorpay
-
+from django.db import transaction
 from api.models import *
 import os
 
 from rest_framework import viewsets, mixins
 
-from api.serializers_files.serializers import PrepareOrderSerializer
+from api.serializers_files.serializers import PrepareOrderSerializer,SaveOrderSerializer
 from api.utility_files.api_call import get_body_data, api_failed, api_success
 
 TEST_KEY_ID = "rzp_test_4DWYbn4PlWlGQF"
@@ -105,3 +106,72 @@ class VerifyOrderView(viewsets.GenericViewSet, mixins.DestroyModelMixin):
         except Exception as e:
             return api_failed("Invalid Razorpay Error", headers={"success": False}).secure().rest()
 
+class SaveOrdersView(viewsets.GenericViewSet, mixins.DestroyModelMixin):
+    queryset = Orders.objects.all()
+    serializer_class = SaveOrderSerializer
+
+    def create(self, request, *args, **kwargs):
+        try:
+            user_id = get_body_data(request, "user_id", "").strip()
+            order_id = get_body_data(request, "order_id", "").strip()
+            total_price = get_body_data(request, "total_price", "")
+            items = get_body_data(request, "items", [])
+            address_id = get_body_data(request, "address_id", "")
+
+            # Validate User
+            try:
+                user = User.objects.get(user_id=user_id)
+            except User.DoesNotExist:
+                return api_failed("User not found", headers={"success": False}).secure().rest()
+
+            # Validate Address
+            try:
+                address = Address.objects.get(id=address_id, user=user)
+            except Address.DoesNotExist:
+                return api_failed("Invalid address selected", headers={"success": False}).secure().rest()
+
+            # Validate PrepareOrder
+            try:
+                prepare_order = PrepareOrder.objects.get(id=order_id)
+            except PrepareOrder.DoesNotExist:
+                return api_failed("Invalid Razorpay Order ID", headers={"success": False}).secure().rest()
+
+            with transaction.atomic():
+                # Create Order
+                order = Orders.objects.create(
+                    user=user,
+                    order_ref=prepare_order,
+                    total_price=total_price,
+                    status="pending",
+                    address=address
+                )
+                print("orders", order)
+                # Save Order Items
+                for item in items:
+                    try:
+                        product = Product.objects.get(id=item["product_id"])
+                        if product.stock < item["quantity"]:
+                            raise IntegrityError(f"Insufficient stock for {product.name}")
+
+                        product.stock -= item["quantity"]
+                        product.sold_count += item["quantity"]
+                        product.save()
+
+                        OrderItem.objects.create(
+                            order=order,
+                            product=product,
+                            quantity=item["quantity"],
+                            price=product.price
+                        )
+                    except Product.DoesNotExist:
+                        raise IntegrityError(f"Product with ID {item['product_id']} not found")
+
+            return api_success("Order saved successfully!", headers={"success": True}).secure().rest()
+
+        except IntegrityError as e:
+            print("Integrity Error:", e)
+            return api_failed(f"Transaction failed: {str(e)}", headers={"success": False}).secure().rest()
+
+        except Exception as e:
+            print("Error in SaveOrdersView:", e)
+            return api_failed("An unexpected error occurred", headers={"success": False}).secure().rest()

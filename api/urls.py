@@ -23,6 +23,7 @@ router.register('delete_user_address', views_files.DeleteAddressView, basename='
 router.register('update_user_address', views_files.UpdateAddressView, basename='update_user_address')
 router.register('prepare_order', views_files.CreateOrderView, basename='prepare_order')
 router.register('verify_order', views_files.VerifyOrderView, basename='verify_order')
+router.register("save_order", views_files.SaveOrdersView, basename="save_order")
 urlpatterns = [
     # auth api
     path('', include(router.urls))

@@ -148,7 +148,32 @@ class CartItem(models.Model):
         return f"{self.user.name} - {self.product.name} ({self.quantity})"
 
 
-from django.db import models
+
+class Address(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="addresses")
+    pincode = models.CharField(max_length=10)
+    house = models.CharField(max_length=255)  # House/Flat/Office No.
+    road = models.CharField(max_length=255)  # Road Name/Area/Colony
+    name = models.CharField(max_length=255)  # Recipient's Name
+    phone = models.CharField(max_length=15)  # Contact Number
+    email = models.EmailField(blank=True, null=True)  # Optional Email
+    is_default = models.BooleanField(default=False)  # Default Address Toggle
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "address"
+
+    def save(self, *args, **kwargs):
+        """
+        Ensure only one default address per user.
+        If this is set as default, remove default from other addresses.
+        """
+        if self.is_default:
+            Address.objects.filter(user=self.user, is_default=True).update(is_default=False)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user.name} - {self.house}, {self.road} ({'Default' if self.is_default else 'Secondary'})"
 
 class PrepareOrder(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None)
@@ -176,17 +201,31 @@ class Orders(models.Model):
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
     ]
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    items = models.ManyToManyField(CartItem)
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    order_ref = models.OneToOneField(PrepareOrder, on_delete=models.CASCADE,
+                                     unique=True)  # ✅ Keep it unique but not primary key
+    address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
         db_table = 'orders'
     def __str__(self):
         return f"Orders {self.id} - {self.user.name} ({self.status})"
 
+class OrderItem(models.Model):
+    order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name="order_items")  # ✅ References `Orders`
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+    price = models.DecimalField(max_digits=10, decimal_places=2)  # Price at the time of order
+
+    class Meta:
+        db_table = "order_item"
+
+    def __str__(self):
+        return f"Order {self.order.id} - {self.product.name} ({self.quantity})"
 class Wishlist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="wishlist")
     product = models.ForeignKey("Product", on_delete=models.CASCADE, related_name="wishlist_items")
@@ -209,28 +248,3 @@ class ReviewImage(models.Model):
     def __str__(self):
         return f"Image for review {self.review.id} - {self.review.product.name}"
 
-class Address(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="addresses")
-    pincode = models.CharField(max_length=10)
-    house = models.CharField(max_length=255)  # House/Flat/Office No.
-    road = models.CharField(max_length=255)  # Road Name/Area/Colony
-    name = models.CharField(max_length=255)  # Recipient's Name
-    phone = models.CharField(max_length=15)  # Contact Number
-    email = models.EmailField(blank=True, null=True)  # Optional Email
-    is_default = models.BooleanField(default=False)  # Default Address Toggle
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "address"
-
-    def save(self, *args, **kwargs):
-        """
-        Ensure only one default address per user.
-        If this is set as default, remove default from other addresses.
-        """
-        if self.is_default:
-            Address.objects.filter(user=self.user, is_default=True).update(is_default=False)
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.user.name} - {self.house}, {self.road} ({'Default' if self.is_default else 'Secondary'})"

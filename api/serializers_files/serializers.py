@@ -118,3 +118,36 @@ class PrepareOrderSerializer(serializers.ModelSerializer):
         if value not in valid_currencies:
             raise serializers.ValidationError("Invalid currency type")
         return value
+
+class CartItemSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField()
+    quantity = serializers.IntegerField()
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    discount = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        model = CartItem
+        fields = ["product_id", "quantity", "price"]
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = ["product", "quantity", "price"]
+
+class SaveOrderSerializer(serializers.ModelSerializer):
+    order_ref = serializers.PrimaryKeyRelatedField(queryset=PrepareOrder.objects.all())  # ✅ Link to PrepareOrder
+    order_items = OrderItemSerializer(many=True)
+    address = serializers.PrimaryKeyRelatedField(queryset=Address.objects.all())
+
+    class Meta:
+        model = Orders
+        fields = ["user", "order_ref", "order_items", "total_price", "status", "address"]  # ✅ Replacing order_id with order_ref
+
+    def create(self, validated_data):
+        order_items_data = validated_data.pop("order_items")
+        order = Orders.objects.create(**validated_data)
+
+        for item_data in order_items_data:
+            OrderItem.objects.create(order=order, **item_data)
+
+        return order

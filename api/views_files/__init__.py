@@ -5,7 +5,8 @@ LoginView
 )
 from .payment_gateway import (
 CreateOrderView,
-VerifyOrderView
+VerifyOrderView,
+SaveOrdersView
 )
 from .products import  (
 GetProductListView,
@@ -34,5 +35,6 @@ __all__=[
 "DeleteAddressView",
 "UpdateAddressView",
 "CreateOrderView",
-"VerifyOrderView"
+"VerifyOrderView",
+"SaveOrdersView"
 ]
