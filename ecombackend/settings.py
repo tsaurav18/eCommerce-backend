@@ -33,9 +33,9 @@ load_dotenv(dotenv_path)
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG") == 'True'
+DEBUG = os.getenv("DEBUG") == 'False'
 
-ALLOWED_HOSTS = ['localhost', '*']
+ALLOWED_HOSTS = ['*', 'tsaurav18.pythonanywhere.com']
 
 CORS_ALLOW_ALL_ORIGINS=True
 # Application definition
@@ -124,6 +124,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',  # Frontend URL
+    'ecommerce-uffk.vercel.app',
+    'https://ecommerce-uffk.vercel.app'
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-signature',
