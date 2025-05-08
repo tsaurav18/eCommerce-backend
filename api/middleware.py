@@ -12,7 +12,7 @@ import json
 import traceback
 
 SECRET_KEY = settings.ECOM_SECRET
-print('SECRET_KEY in middleware',SECRET_KEY)
+# print('SECRET_KEY in middleware',SECRET_KEY)
 SIGNATURE_HEADER_NAME = 'X-Signature'
 
 ERROR_MISSING_X_SIGNATURE = 'Invalid signature.'

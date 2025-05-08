@@ -1,12 +1,14 @@
 from rest_framework import mixins, viewsets, status
 from api.models import *
-from api.serializers_files.serializers import ProductSerializer, ReviewSerializer, WishlistSerializer, BrandSerializer, AddressSerializer
+from api.serializers_files.serializers import ProductSerializer, ReviewSerializer, WishlistSerializer, BrandSerializer, \
+    AddressSerializer, OrderHistorySerializer, CouponSerializer, UserCouponSerializer, CancelRefundSerializer
 from api.utility_files.api_call import get_body_data, api_failed, api_success
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
-
+from dateutil.relativedelta import relativedelta
+from django.db.models import Prefetch
 #Product list
 class GetProductListView(viewsets.GenericViewSet, mixins.CreateModelMixin):
     queryset = Product.objects.all()
@@ -132,9 +134,13 @@ class GetWishListView(viewsets.GenericViewSet, mixins.CreateModelMixin):
             user = User.objects.get(user_id=user_id)
             wishlist_items = Wishlist.objects.filter(user=user).select_related("product")
             serialized_wishlist = WishlistSerializer(wishlist_items, many=True, context={"request": request}).data
+            if len(serialized_wishlist)>0:
+                return api_success("Wishlist fetched successfully", body={"wishlist": serialized_wishlist}).secure().rest()
+            else:
+                return api_success("Wishlist fetched successfully", body={"wishlist": serialized_wishlist}).secure().rest()
 
-            return api_success("Wishlist fetched successfully", body={"wishlist": serialized_wishlist}).secure().rest()
         except Exception as e:
+            print("e in GetWishListView", e)
             return api_failed("Error occurred while fetching wishlist").secure().rest()
 
 class GetBrandListView(viewsets.GenericViewSet, mixins.CreateModelMixin):
@@ -344,3 +350,244 @@ class DeleteAddressView(viewsets.GenericViewSet, mixins.DestroyModelMixin):
         serialized_addresses = AddressSerializer(updated_addresses, many=True).data
 
         return api_success("Address deleted successfully", body={"addressList": serialized_addresses}).secure().rest()
+
+from django.db.models import Q
+from rest_framework import mixins, viewsets
+
+class SearchProductsView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    queryset = Product.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        query = get_body_data(request, "query", "").strip()
+        if not query:
+            # If no query, return empty results
+            return api_success("No search term provided", body={"products": [], "reviews": []}).secure().rest()
+
+        try:
+            # Filter products by name, description, or brand name (case-insensitive)
+            products = Product.objects.prefetch_related("reviews__user").filter(
+                Q(name__icontains=query)
+                | Q(description__icontains=query)
+                | Q(brand__brand_name__icontains=query)
+            )
+
+            # Fetch all reviews for the filtered products
+            reviews = Review.objects.filter(product__in=products)
+
+            # Serialize products and reviews
+            serialized_products = ProductSerializer(products, many=True, context={"request": request}).data
+            serialized_reviews = ReviewSerializer(reviews, many=True, context={"request": request}).data
+
+            return api_success("Search results", body={
+                "products": serialized_products,
+                "reviews": serialized_reviews
+            }).secure().rest()
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return api_failed("Error occurred while searching products", headers={"code": 1003}).secure().rest()
+
+class GetUserOrderHistoryView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    queryset = Orders.objects.all()
+    serializer_class = OrderHistorySerializer
+
+    def create(self, request, *args, **kwargs):
+        # 1. Extract user_id and range from the request body
+        user_id = get_body_data(request, "user_id", "").strip()
+        range_value = get_body_data(request, "range", "").strip().lower()  # e.g., "3m", "6m", "1y", "3y"
+
+        if not user_id:
+            return api_failed("User ID is required", headers={"code": 1001}).secure().rest()
+
+        # 2. Validate the user
+        try:
+            user = User.objects.get(user_id=user_id)
+        except User.DoesNotExist:
+            return api_failed("User not found", headers={"code": 1004}).secure().rest()
+
+        # 3. Determine the date cutoff based on the range
+        filter_date = None
+        if range_value == "3m":
+            filter_date = now() - relativedelta(months=3)
+        elif range_value == "6m":
+            filter_date = now() - relativedelta(months=6)
+        elif range_value == "1y":
+            filter_date = now() - relativedelta(years=1)
+        elif range_value == "3y":
+            filter_date = now() - relativedelta(years=3)
+        # If range_value is empty or invalid, we fetch all orders.
+
+        try:
+            # 4. Build the base queryset for the user's orders
+            orders_qs = Orders.objects.filter(user=user)
+            if filter_date:
+                orders_qs = orders_qs.filter(created_at__gte=filter_date)
+
+            # 5. Prefetch order_items and the related product (for product details)
+            orders_qs = orders_qs.prefetch_related("order_items__product").order_by("-created_at")
+
+            # 6. Serialize and return the order history
+            serialized_orders = self.get_serializer(orders_qs, many=True, context={"request": request}).data
+            return api_success("Order history fetched successfully", body={"orders": serialized_orders}).secure().rest()
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return api_failed("Error occurred while fetching order history", headers={"code": 1003}).secure().rest()
+
+class RegisterCouponView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    queryset = Coupon.objects.all()
+    serializer_class = CouponSerializer
+
+    def create(self, request, *args, **kwargs):
+        # 1. Extract data
+        user_id = get_body_data(request, "user_id", "").strip()
+        coupon_code = get_body_data(request, "coupon_code", "").strip()
+
+        if not user_id or not coupon_code:
+            return api_failed("user_id and coupon_code are required", headers={"code": 1001}).secure().rest()
+
+        # 2. Validate user
+        try:
+            user = User.objects.get(user_id=user_id)
+        except User.DoesNotExist:
+            return api_failed("User not found", headers={"code": 1004}).secure().rest()
+
+        # 3. Lookup coupon by code (case-insensitive)
+        try:
+            coupon = Coupon.objects.get(code__iexact=coupon_code)
+        except Coupon.DoesNotExist:
+            print("error coupon is not existed")
+            return api_failed("Invalid coupon code", headers={"code": 1002}).secure().rest()
+        print("coupon", coupon.code)
+        # 4. Check if coupon is valid
+        if not coupon.is_valid():
+            return api_failed("Coupon is invalid or expired", headers={"code": 1003}).secure().rest()
+
+        # 5. Check if user already registered this coupon
+        if UserCoupon.objects.filter(user=user, coupon=coupon).exists():
+            return api_failed("Coupon already registered by this user", headers={"code": 1005}).secure().rest()
+
+        # 6. Mark usage and create user coupon record
+        coupon.usage_count += 1
+        coupon.save()
+
+        user_coupon = UserCoupon.objects.create(user=user, coupon=coupon)
+
+        # 7. Return success with coupon discount details and user coupon info
+        return api_success(
+            "Coupon applied successfully",
+            body={
+                "coupon_code": coupon.code,
+                "discount_type": coupon.discount_type,
+                "discount_value": str(coupon.discount_value),
+                "user_coupon": UserCouponSerializer(user_coupon, context={"request": request}).data,
+            }
+        ).secure().rest()
+
+
+class GetUserCouponView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    serializer_class = UserCouponSerializer
+
+    def create(self, request, *args, **kwargs):
+        # 1. Extract data
+        user_id = get_body_data(request, "user_id", "").strip()
+        try:
+            if user_id:
+                user = get_object_or_404(User, user_id=user_id)
+                uc = UserCoupon.objects.filter(user=user).order_by("-registered_at")
+                return api_success(
+                    "Coupon fetched successfully",
+                    body={
+                        "user_coupon": UserCouponSerializer(uc, many=True, context={"request": request}).data,
+                    }
+                ).secure().rest()
+            else:
+                api_failed("No user id provided", headers={"code":1004}).secure().rest()
+        except UserCoupon.DoesNotExist:
+            print("No coupon provided")
+            return api_failed("Registered Coupon is not found", headers={"code": 1005}).secure().rest()
+
+
+class GetCancelRefundListView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    serializer_class = CancelRefundSerializer
+
+    def create(self, request, *args, **kwargs):
+        user_id = get_body_data(request, "user_id").strip()
+        status = get_body_data(request, "status", "").strip()
+        range_value = get_body_data(request, "range", "").strip()
+
+        if not user_id:
+            return api_failed("User ID required", headers={"code": 1001}).secure().rest()
+
+        user = User.objects.filter(user_id=user_id).first()
+        if not user:
+            return api_failed("User not found.", headers={"code": 1004}).secure().rest()
+
+        cancel_refund_qs = CancelRefund.objects.filter(user=user)
+
+        if status in ['cancelled', 'returned']:
+            cancel_refund_qs = cancel_refund_qs.filter(status=status)
+
+        from django.utils.timezone import now
+        from dateutil.relativedelta import relativedelta
+
+        filter_date = None
+        if range_value == "3m":
+            filter_date = now() - relativedelta(months=3)
+        elif range_value == "6m":
+            filter_date = now() - relativedelta(months=6)
+        elif range_value == "1y":
+            filter_date = now() - relativedelta(years=1)
+        elif range_value == "3y":
+            filter_date = now() - relativedelta(years=3)
+
+        if filter_date:
+            cancel_refund_qs = cancel_refund_qs.filter(created_at__gte=filter_date)
+
+        cancel_refund_qs = cancel_refund_qs.select_related(
+            "order",
+            "order__address",
+            "order__order_ref"
+        ).prefetch_related(
+            "order__order_items__product",
+            "order__order_items__product__additional_images",
+            "order__order_items__product__brand",
+            "order__order_items__product__category"
+        ).order_by("-created_at")
+
+        # In your GetCancelRefundListView
+        serialized_data = self.serializer_class(cancel_refund_qs, many=True, context={"request": request}).data
+        return api_success("Cancel/Refund list fetched successfully.", body={"cancel_refund": serialized_data}).secure().rest()
+class CancelRefundCreateView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    serializer_class = CancelRefundSerializer
+
+    def create(self, request, *args, **kwargs):
+        user_id = get_body_data(request, "user_id", "").strip()
+        order_id = get_body_data(request, "order_id", "")
+        status = get_body_data(request, "status", "").strip()
+        reason = get_body_data(request, "reason", "").strip()
+
+        if not user_id or not order_id or not status:
+            return api_failed("All fields are required.", headers={"code": 1001}).secure().rest()
+
+        user = User.objects.filter(user_id=user_id).first()
+        order = Orders.objects.filter(id=order_id, user=user).first()
+
+        if not user or not order:
+            return api_failed("User or Order not found.", headers={"code": 1002}).secure().rest()
+
+        # Check if already cancelled/returned
+        if CancelRefund.objects.filter(user=user, order=order, status=status).exists():
+            return api_failed("Already applied for this status.", headers={"code": 1003}).secure().rest()
+
+            # Create CancelRefund entry
+        cancel_refund = CancelRefund.objects.create(user=user, order=order, status=status, reason=reason)
+
+        # Update the order's status based on the action
+        order.status = status  # Update order status to 'cancelled' or 'returned'
+        order.save()
+
+        return api_success(f"Order {status} successfully applied.").secure().rest()
+

@@ -3,21 +3,31 @@ from django.utils.timezone import now
 from django.utils.text import slugify
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+import random
+import string
+from datetime import timedelta
+
 # Create your models here.
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, name, user_id, password=None):
+    def generate_random_id(self, length=8):
+        characters = string.ascii_uppercase + string.ascii_lowercase + string.digits
+        return ''.join(random.choices(characters, k=length))
+
+    def create_user(self, email, name, user_id=None, password=None):
         if not email:
             raise ValueError("Users must have an email address")
         email = self.normalize_email(email)
-        user = self.model(email=email, name=name)
-        user.user_id = str(user_id)
+        print("user_id in create user", user_id, email, name)
+        if not user_id:
+            user_id = self.generate_random_id()
+        user = self.model(email=email, name=name, user_id=user_id)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, name, password=None):
-        user = self.create_user(email=email, name=name, password=password)
+    def create_superuser(self, email, name, password=None, user_id=None):
+        user = self.create_user(email=email, name=name, password=password, user_id=user_id)
         user.is_admin = True
         user.is_staff = True
         user.is_superuser = True
@@ -197,9 +207,12 @@ class PrepareOrder(models.Model):
 class Orders(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('processing', 'Processing'),  # 주문 처리 중
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
+        ('refunded', 'Refunded'),
+        ('returned', 'Returned')
     ]
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -238,13 +251,87 @@ class Wishlist(models.Model):
     def __str__(self):
         return f"{self.user.name} - {self.product.name}"
 
-class ReviewImage(models.Model):
-    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField(upload_to='media/reviews/')
+
+
+class EmailOTP(models.Model):
+    email = models.EmailField()
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    verified = models.BooleanField(default=False)
 
     class Meta:
-        db_table = 'review_image'
+        db_table = 'email_otp'
+    def is_expired(self):
+        # Define the OTP validity period (e.g., 10 minutes)
+        return now() > self.created_at + timedelta(minutes=10)
 
     def __str__(self):
-        return f"Image for review {self.review.id} - {self.review.product.name}"
+        return f"{self.email} - {self.otp} - Verified: {self.verified}"
 
+class Coupon(models.Model):
+    DISCOUNT_TYPE_CHOICES = [
+        ("fixed", "Fixed"),       # e.g. $10 off
+        ("percent", "Percent"),   # e.g. 10% off
+    ]
+
+    code = models.CharField(max_length=50, unique=True)
+    discount_type = models.CharField(max_length=10, choices=DISCOUNT_TYPE_CHOICES, default="fixed")
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    usage_limit = models.PositiveIntegerField(default=1)  # How many times it can be used in total
+    usage_count = models.PositiveIntegerField(default=0)  # How many times it has been used
+    is_active = models.BooleanField(default=True)
+    valid_from = models.DateTimeField()
+    valid_to = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.code
+
+    def is_valid(self) -> bool:
+        """Check if the coupon is currently valid for use."""
+        now_ = now()
+        return (
+            self.is_active and
+            self.usage_count <= self.usage_limit and
+            self.valid_from <= now_ <= self.valid_to
+        )
+
+class UserCoupon(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="user_coupons")
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, related_name="user_coupons")
+    registered_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+    class Meta:
+        unique_together = ("user", "coupon")  # Each coupon can only be registered once per user
+
+    def __str__(self):
+        return f"{self.user.name} - {self.coupon.code}"
+
+class CancelRefund(models.Model):
+    STATUS_CHOICES = [
+        ("cancelled", "Cancelled"),
+        ("returned", "Returned"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="cancel_refunds")
+    order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name="cancel_refunds")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    reason = models.TextField(blank=True, null=True)  # Reason for cancel/return
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.name} - Order #{self.order.id} - {self.status}"
+
+class PaypalOrder(models.Model):
+    order_id = models.CharField(max_length=64, unique=True)
+    purchase_units = models.JSONField()
+    intent = models.CharField(max_length=16, default="CAPTURE")
+    experience_context = models.JSONField(null=True, blank=True)
+    status = models.CharField(max_length=32)
+    raw_response = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        db_table = 'paypal_order'
+    def __str__(self):
+        return self.order_id

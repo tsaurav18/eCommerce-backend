@@ -1,12 +1,17 @@
 from .authentication import (
 GetCsrfView,
 RegisterView,
-LoginView
+LoginView,
+VerifyOtpView,
+SendOtpView,
+GoogleLoginView
 )
 from .payment_gateway import (
 CreateOrderView,
 VerifyOrderView,
-SaveOrdersView
+SaveOrdersView,
+PaypalCreateOrderView,
+PaypalCaptureOrderView
 )
 from .products import  (
 GetProductListView,
@@ -18,7 +23,13 @@ GetBrandProductsView,
 AddNewAddressView,
 GetAddressListView,
 DeleteAddressView,
-UpdateAddressView
+UpdateAddressView,
+SearchProductsView,
+GetUserOrderHistoryView,
+RegisterCouponView,
+GetUserCouponView,
+GetCancelRefundListView,
+CancelRefundCreateView
 )
 __all__=[
 "GetCsrfView",
@@ -36,5 +47,16 @@ __all__=[
 "UpdateAddressView",
 "CreateOrderView",
 "VerifyOrderView",
-"SaveOrdersView"
+"SaveOrdersView",
+"VerifyOtpView",
+"SendOtpView",
+"GoogleLoginView",
+"SearchProductsView",
+"GetUserOrderHistoryView",
+"RegisterCouponView",
+"GetUserCouponView",
+"GetCancelRefundListView",
+"CancelRefundCreateView",
+"PaypalCreateOrderView",
+"PaypalCaptureOrderView"
 ]

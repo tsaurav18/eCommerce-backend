@@ -17,7 +17,7 @@ from corsheaders.defaults import default_headers
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = os.path.abspath(__file__ + "/../../")
-
+print("BASE_DIR", BASE_DIR)
 ECOM_ENV = os.environ.get('ECOM_ENV') or 'development'
 if ECOM_ENV == 'production':
     dotenv_path = os.path.join(BASE_DIR, 'production.env')
@@ -49,7 +49,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "corsheaders",
-    "api"
+    "api",
+    "communityapi",
+    "consultantapi"
 ]
 
 MIDDLEWARE = [
@@ -64,7 +66,10 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 
 ]
-
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Default for your ecomm user
+    'consultantapi.models.CourseUserBackend',      # For your courses user
+]
 ROOT_URLCONF = "ecombackend.urls"
 
 TEMPLATES = [
@@ -142,7 +147,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 MEDIA_URL = "/media/"  # Use `/media/` instead of `/products/`
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_ROOT = os.path.join(BASE_DIR, "")
 
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "static/")
@@ -153,6 +158,20 @@ print("MEDIA_ROOT", MEDIA_ROOT)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 ECOM_SECRET = os.getenv('ECOM_SECRET')
+
 TEST_KEY_ID = os.getenv('TEST_KEY_ID')
 TEST_KEY_SECRET = os.getenv('TEST_KEY_SECRET')
+PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID')
+PAYPAL_SECRET_KEY = os.getenv('PAYPAL_SECRET_KEY')
+STREAM_TOKEN = os.getenv('STREAM_TOKEN')
 AUTH_USER_MODEL = 'api.User'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'tsaurav1711@gmail.com'
+EMAIL_HOST_PASSWORD = 'vnuu ysbc yvfd bjdb'
+EMAIL_USE_TLS = True
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024

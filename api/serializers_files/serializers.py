@@ -18,9 +18,19 @@ class ProductSerializer(serializers.ModelSerializer):
     additional_images = ProductImageSerializer(many=True, read_only=True)
     discount_price = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
+    brand_name = serializers.CharField(source="brand.brand_name", read_only=True)
+
     class Meta:
         model = Product
-        fields = '__all__'  # This includes all fields in the Product model
+        fields = [
+            "id", "name", "slug", "description",
+            "price", "discount_price",
+            "stock", "sold_count",
+            "main_image", "additional_images",
+            "brand",  # will still be the brand _id_
+            "brand_name",  # now also the brand’s human-readable name
+            "is_active", "created_at", "updated_at",
+        ]
 
     def get_main_image(self, obj):
         request = self.context.get('request')
@@ -29,6 +39,7 @@ class ProductSerializer(serializers.ModelSerializer):
             print("Generated Image URL:", full_url)  # Debugging print statement
             return full_url
         return None
+
     def get_price(self, obj):
         return int(obj.price)
     def get_discount_price(self, obj):
@@ -129,10 +140,18 @@ class CartItemSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = ["product_id", "quantity", "price"]
 
+
 class OrderItemSerializer(serializers.ModelSerializer):
+    # This field will include full product details using the ProductSerializer
+    product_details = ProductSerializer(source='product', read_only=True)
+    price = serializers.SerializerMethodField()
+
+    def get_price(self, obj):
+        return int(obj.price)
+
     class Meta:
         model = OrderItem
-        fields = ["product", "quantity", "price"]
+        fields = ["product", "product_details", "quantity", "price"]
 
 class SaveOrderSerializer(serializers.ModelSerializer):
     order_ref = serializers.PrimaryKeyRelatedField(queryset=PrepareOrder.objects.all())  # ✅ Link to PrepareOrder
@@ -151,3 +170,91 @@ class SaveOrderSerializer(serializers.ModelSerializer):
             OrderItem.objects.create(order=order, **item_data)
 
         return order
+
+
+class OrderHistorySerializer(serializers.ModelSerializer):
+    order_items = OrderItemSerializer(many=True, read_only=True)
+    order_ref = PrepareOrderSerializer(read_only=True)
+    address = AddressSerializer(read_only=True)
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    total_price = serializers.SerializerMethodField()
+    def get_total_price(self, obj):
+        return int(obj.total_price)
+    class Meta:
+        model = Orders
+        fields = [
+            "id",
+            "order_ref",
+            "order_items",
+            "total_price",
+            "status",
+            "address",
+            "created_at"
+        ]
+class CouponSerializer(serializers.ModelSerializer):
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    discount_value = serializers.SerializerMethodField()
+    def get_discount_value(self, obj):
+        # Convert the discount value to an int (e.g., 10.00 -> 10)
+        return int(obj.discount_value)
+    class Meta:
+        model = Coupon
+        fields = [
+            "id",
+            "code",
+            "discount_type",
+            "discount_value",
+            "is_active",
+            "usage_count",
+            "usage_limit",
+            "valid_from",
+            "valid_to",
+            "created_at",
+        ]
+
+class UserCouponSerializer(serializers.ModelSerializer):
+    coupon_details = CouponSerializer(source="coupon", read_only=True)
+    registered_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    is_used = serializers.SerializerMethodField()
+
+    def get_is_used(self, obj):
+        # If your model doesn't store this explicitly, define the logic here.
+        # For example, if you add a boolean field 'used' in your UserCoupon model, you can do:
+        return getattr(obj, "is_used", False)
+    class Meta:
+        model = UserCoupon
+        fields = ["id", "coupon", "coupon_details", "registered_at", "is_used"]
+
+class CancelRefundSerializer(serializers.ModelSerializer):
+    # If you want to nest order details, you can use an Order serializer:
+    order_details = OrderHistorySerializer(source="order", read_only=True)
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+
+    class Meta:
+        model = CancelRefund
+        fields = [
+            "id",
+            "user",
+            "order",
+            "status",
+            "reason",
+            "created_at",
+            "order_details",
+        ]
+
+class PaypalCreateOrderSerializer(serializers.Serializer):
+    purchase_units = serializers.ListField(
+        child=serializers.DictField(),
+        allow_empty=False
+    )
+    user = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    intent = serializers.CharField(default='CAPTURE')
+    experience_context = serializers.DictField(required=False)
+    def validate_amount(self, value):
+        """Ensure the amount is a positive integer"""
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than 0")
+        return value
+class PaypalCaptureOrderSerializer(serializers.Serializer):
+    orderID = serializers.CharField()

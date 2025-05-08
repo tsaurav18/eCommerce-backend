@@ -14,3 +14,9 @@ admin.site.register(Wishlist)
 admin.site.register(User)
 admin.site.register(ReviewImage)
 admin.site.register(Brand)
+admin.site.register(UserCoupon)
+admin.site.register(Coupon)
+admin.site.register(EmailOTP)
+admin.site.register(CancelRefund)
+
+

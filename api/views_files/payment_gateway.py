@@ -6,10 +6,11 @@ import razorpay
 from django.db import transaction
 from api.models import *
 import os
-
+from requests.auth import HTTPBasicAuth
+import requests
 from rest_framework import viewsets, mixins
-
-from api.serializers_files.serializers import PrepareOrderSerializer,SaveOrderSerializer
+from django.conf import settings
+from api.serializers_files.serializers import PrepareOrderSerializer, SaveOrderSerializer, PaypalCreateOrderSerializer, PaypalCaptureOrderSerializer
 from api.utility_files.api_call import get_body_data, api_failed, api_success
 
 TEST_KEY_ID = "rzp_test_4DWYbn4PlWlGQF"
@@ -142,10 +143,10 @@ class SaveOrdersView(viewsets.GenericViewSet, mixins.DestroyModelMixin):
                     user=user,
                     order_ref=prepare_order,
                     total_price=total_price,
-                    status="pending",
+                    status="processing",
                     address=address
                 )
-                print("orders", order)
+                # print("orders", order)
                 # Save Order Items
                 for item in items:
                     try:
@@ -175,3 +176,165 @@ class SaveOrdersView(viewsets.GenericViewSet, mixins.DestroyModelMixin):
         except Exception as e:
             print("Error in SaveOrdersView:", e)
             return api_failed("An unexpected error occurred", headers={"success": False}).secure().rest()
+
+
+class PaypalCreateOrderView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    serializer_class = PaypalCreateOrderSerializer
+
+    def create(self, request, *args, **kwargs):
+        # 입력값 검증
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        purchase_units     = data['purchase_units']
+        intent             = data.get('intent', 'CAPTURE')
+        experience_context = data.get('experience_context', {})
+        user_id = data.get('user')
+        amount = data.get("amount")
+        try:
+            user = User.objects.get(user_id=user_id)
+        except User.DoesNotExist:
+            return api_failed("User not found", headers={"code": 1004}).secure().rest()
+        # 1) PayPal OAuth 토큰 발급
+        token_res = requests.post(
+            "https://api-m.sandbox.paypal.com/v1/oauth2/token",
+            data={"grant_type": "client_credentials"},
+            auth=HTTPBasicAuth(settings.PAYPAL_CLIENT_ID, settings.PAYPAL_SECRET_KEY),
+        )
+        if token_res.status_code != 200:
+            return (
+                api_failed("Failed to obtain PayPal access token.", headers={"code": 1002})
+                .secure()
+                .rest()
+            )
+        access_token = token_res.json().get('access_token')
+
+        # 2) PayPal 주문 생성
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+        body = {
+            "intent": intent,
+            "purchase_units": purchase_units,
+            "payment_source": {"paypal": {"experience_context": experience_context}},
+        }
+        order_res = requests.post(
+            "https://api-m.sandbox.paypal.com/v2/checkout/orders",
+            json=body,
+            headers=headers,
+        )
+
+        if order_res.status_code not in (200, 201):
+            return (
+                api_failed("Failed to capture PayPal order", headers={"code": 1003})
+                .secure()
+                .rest()
+            )
+        order_data = order_res.json()
+
+        # 3) DB에 주문 정보 저장
+        PaypalOrder.objects.update_or_create(
+            order_id=order_data['id'],
+            defaults={
+                'purchase_units': purchase_units,
+                'intent': intent,
+                'experience_context': experience_context,
+                'status': order_data.get('status'),
+                'raw_response': order_data,
+            }
+        )
+        PrepareOrder.objects.update_or_create(
+            user=user,
+            amount=amount,
+            currency="INR",
+            receipt=intent,
+            notes=order_data,
+            id=order_data['id'],
+            partial_payment=False,  # Default to false
+        )
+
+        # 4) 응답 반환
+        return (
+            api_success(api_msg='Success', body=order_data)
+            .secure()
+            .rest()
+        )
+
+
+class PaypalCaptureOrderView(viewsets.GenericViewSet, mixins.CreateModelMixin):
+    serializer_class = PaypalCaptureOrderSerializer
+
+    def create(self, request, *args, **kwargs):
+        # 입력값 검증
+        order_id = get_body_data(request, 'orderID', '').strip()
+        if not order_id:
+            return (
+                api_failed("orderID is required.", headers={"code": 1004})
+                .secure()
+                .rest()
+            )
+
+        # DB에서 기존 주문 조회
+        try:
+            paypal_order = PaypalOrder.objects.get(order_id=order_id)
+        except PaypalOrder.DoesNotExist:
+            return (
+                api_failed("Order not found.", headers={"code": 1005})
+                .secure()
+                .rest()
+            )
+
+        # PayPal OAuth 토큰 재발급
+        token_res = requests.post(
+            "https://api-m.sandbox.paypal.com/v1/oauth2/token",
+            data={"grant_type": "client_credentials"},
+            auth=HTTPBasicAuth(settings.PAYPAL_CLIENT_ID, settings.PAYPAL_SECRET_KEY),
+        )
+        if token_res.status_code != 200:
+            return (
+                api_failed("Failed to obtain PayPal access token.", headers={"code": 1006})
+                .secure()
+                .rest()
+            )
+        access_token = token_res.json().get('access_token')
+
+        # 주문 캡처 API 호출
+        cap_res = requests.post(
+            f"https://api-m.sandbox.paypal.com/v2/checkout/orders/{order_id}/capture",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {access_token}",
+            }
+        )
+        if cap_res.status_code not in (200, 201):
+            return (
+                api_failed("Failed to capture PayPal order", headers={"code": 1007})
+                .secure()
+                .rest()
+            )
+        cap_data = cap_res.json()
+
+        # DB 업데이트
+        paypal_order.status = cap_data.get('status', paypal_order.status)
+        paypal_order.raw_response = cap_data
+        paypal_order.save()
+        captures = cap_data["purchase_units"][0]["payments"]["captures"]
+        first_capture = captures[0]
+        amount_value = first_capture["amount"]["value"]  # e.g. "1.00"
+        amount_currency = first_capture["amount"]["currency_code"]  # e.g. "USD"
+
+        PrepareOrder.objects.update_or_create(
+            id=cap_data.get('id'),
+            defaults={
+                "notes": cap_data,
+                "amount": amount_value,  # store as Decimal
+                "currency": amount_currency,  # if you have a currency field
+            }
+        )
+        # 응답 반환
+        return (
+            api_success(body=cap_data)
+            .secure()
+            .rest()
+        )
