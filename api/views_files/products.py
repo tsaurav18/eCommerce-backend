@@ -174,7 +174,7 @@ class GetBrandProductsView(viewsets.GenericViewSet, mixins.CreateModelMixin):
             brand = get_object_or_404(Brand, brand_name__iexact=brand_name)  # Case insensitive match
             print("brand", brand)
             # Base query: Get products of this brand
-            products_query = Product.objects.filter(brand=brand).prefetch_related("reviews__images", "reviews__user", "additional_images")
+            products_query = Product.objects.filter(brand=brand).prefetch_related("reviews__images", "reviews__user", "additional_images", "variants")
             print("products_query", products_query)
             # Filter by subcategory if it's not "all"
             if subcategory_name.lower() != "all":
@@ -189,7 +189,7 @@ class GetBrandProductsView(viewsets.GenericViewSet, mixins.CreateModelMixin):
                         return api_failed("Invalid subcategory", headers={"code": 1004}).secure().rest()
                     products_query = Product.objects.filter(Q(brand=brand) &
                                                             (Q(category=parent_category) | Q(category__in=child_subcategories))
-                    ).prefetch_related("reviews__images", "reviews__user", "additional_images")
+                    ).prefetch_related("reviews__images", "reviews__user", "additional_images","variants")
 
                 print("products_query in if", products_query)
             # Fetch reviews for these products

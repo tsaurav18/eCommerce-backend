@@ -36,7 +36,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == 'False'
 
-ALLOWED_HOSTS = ['*', '13.209.221.76']
+ALLOWED_HOSTS = ['*', '13.209.221.76', 'https://ecommerce-uffk.vercel.app']
 
 CORS_ALLOW_ALL_ORIGINS=True
 # Application definition
@@ -139,7 +139,8 @@ AUTH_PASSWORD_VALIDATORS = [
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',  # Frontend URL
     'https://ecommerce-uffk.vercel.app',
-    'http://13.209.221.76:8000'
+    'http://13.209.221.76:8000',
+
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
