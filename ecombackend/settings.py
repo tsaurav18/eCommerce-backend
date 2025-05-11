@@ -24,7 +24,7 @@ if ECOM_ENV == 'production':
 else:
     dotenv_path = os.path.join(BASE_DIR, 'development.env')
 print("ECOM_ENV", ECOM_ENV)
-print("dotenv_path", dotenv_path)
+print("os.getenv(db name)", os.getenv("DB_DEFAULT_NAME"))
 load_dotenv(dotenv_path)
 
 
