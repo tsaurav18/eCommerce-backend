@@ -24,9 +24,9 @@ if ECOM_ENV == 'production':
 else:
     dotenv_path = os.path.join(BASE_DIR, 'development.env')
 print("ECOM_ENV", ECOM_ENV)
-print("os.getenv(db name)", os.getenv("DB_DEFAULT_NAME"))
-load_dotenv(dotenv_path)
 
+load_dotenv(dotenv_path)
+print("os.getenv(db name)", os.getenv("DB_DEFAULT_NAME"))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
