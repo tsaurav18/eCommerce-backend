@@ -92,6 +92,20 @@ class Product(models.Model):
     slug = models.SlugField(max_length=255, unique=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products")
     description = models.TextField(blank=True)
+    description_file = models.FileField(
+        upload_to='media/products/descriptions/',
+        null=True,
+        blank=True,
+        help_text="Upload a PDF to use as the description if `description` is empty."
+    )
+    ingredients = models.TextField(
+        blank=True,
+        help_text="List of ingredients, one per line or however you prefer."
+    )
+    how_to_use = models.TextField(
+        blank=True,
+        help_text="Instructions on how to use this product."
+    )
     price = models.DecimalField(max_digits=10, decimal_places=2)
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
@@ -114,7 +128,31 @@ class Product(models.Model):
         return self.name
 
 
+class ProductVariant(models.Model):
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="variants",
+    )
+    # e.g. “100 ml”, “200 ml”, “Red / Large”, etc.
+    name = models.CharField(max_length=100)
 
+    # override prices, stock, sold_count per variant
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_price = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True
+    )
+    stock = models.PositiveIntegerField(default=0)
+    sold_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'product_variant'
+        unique_together = [["product", "name"]]
+        ordering = ["product", "name"]
+
+    def __str__(self):
+        return f"{self.product.name} — {self.name}"
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="additional_images")
     image = models.ImageField(upload_to='media/products/')
@@ -218,6 +256,7 @@ class Orders(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     order_ref = models.OneToOneField(PrepareOrder, on_delete=models.CASCADE,
                                      unique=True)  # ✅ Keep it unique but not primary key
+
     address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -231,6 +270,7 @@ class Orders(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name="order_items")  # ✅ References `Orders`
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    variant = models.ForeignKey(ProductVariant, on_delete=models.SET_NULL, null=True, blank=True)  # ✅ NEW
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)  # Price at the time of order
 

@@ -151,19 +151,44 @@ class SaveOrdersView(viewsets.GenericViewSet, mixins.DestroyModelMixin):
                 for item in items:
                     try:
                         product = Product.objects.get(id=item["product_id"])
-                        if product.stock < item["quantity"]:
-                            raise IntegrityError(f"Insufficient stock for {product.name}")
+                        variant_id = item.get("variant_id")
+                        if variant_id:
+                            try:
+                                variant = ProductVariant.objects.get(id=variant_id, product=product)
+                            except ProductVariant.DoesNotExist:
+                                raise IntegrityError(
+                                    f"Variant with ID {variant_id} not found for product {product.name}")
 
-                        product.stock -= item["quantity"]
-                        product.sold_count += item["quantity"]
-                        product.save()
+                            if variant.stock < item["quantity"]:
+                                raise IntegrityError(f"Insufficient stock for {variant.name}")
 
-                        OrderItem.objects.create(
-                            order=order,
-                            product=product,
-                            quantity=item["quantity"],
-                            price=product.price
-                        )
+                            # Deduct variant stock
+                            variant.stock -= item["quantity"]
+                            variant.save()
+
+                            price_at_time = variant.price  # Use variant price
+                            OrderItem.objects.create(
+                                order=order,
+                                product=product,
+                                variant=variant,
+                                quantity=item["quantity"],
+                                price=price_at_time,
+                            )
+                        else:
+                            # Fallback to product-level (not ideal anymore)
+                            if product.stock < item["quantity"]:
+                                raise IntegrityError(f"Insufficient stock for {product.name}")
+
+                            product.stock -= item["quantity"]
+                            product.save()
+
+                            OrderItem.objects.create(
+                                order=order,
+                                product=product,
+                                quantity=item["quantity"],
+                                price=product.price,
+                            )
+
                     except Product.DoesNotExist:
                         raise IntegrityError(f"Product with ID {item['product_id']} not found")
 
@@ -191,6 +216,7 @@ class PaypalCreateOrderView(viewsets.GenericViewSet, mixins.CreateModelMixin):
         experience_context = data.get('experience_context', {})
         user_id = data.get('user')
         amount = data.get("amount")
+        print("user_id", user_id, "amount", amount, intent, experience_context)
         try:
             user = User.objects.get(user_id=user_id)
         except User.DoesNotExist:
@@ -234,25 +260,56 @@ class PaypalCreateOrderView(viewsets.GenericViewSet, mixins.CreateModelMixin):
         order_data = order_res.json()
 
         # 3) DB에 주문 정보 저장
-        PaypalOrder.objects.update_or_create(
-            order_id=order_data['id'],
-            defaults={
-                'purchase_units': purchase_units,
-                'intent': intent,
-                'experience_context': experience_context,
-                'status': order_data.get('status'),
-                'raw_response': order_data,
-            }
-        )
-        PrepareOrder.objects.update_or_create(
-            user=user,
-            amount=amount,
-            currency="INR",
-            receipt=intent,
-            notes=order_data,
-            id=order_data['id'],
-            partial_payment=False,  # Default to false
-        )
+        try:
+            with transaction.atomic():  # ✅ wrap entire logic here
+                try:
+                    # Check if the object exists
+                    PaypalOrder.objects.get(order_id=order_data['id'])
+                    # If it exists, you can either skip or choose to update it manually
+                    # For example:
+                    # existing_order = PaypalOrder.objects.get(order_id=order_data['id'])
+                    # existing_order.purchase_units = purchase_units
+                    # existing_order.save()
+                except PaypalOrder.DoesNotExist:
+                    # Object doesn't exist, safe to create
+                    PaypalOrder.objects.create(
+                        order_id=order_data['id'],
+                        purchase_units=purchase_units,
+                        intent=intent,
+                        experience_context=experience_context,
+                        status=order_data.get('status'),
+                        raw_response=order_data
+                    )
+
+                try:
+                    # Check if a PrepareOrder with this ID already exists
+                    prepare_order = PrepareOrder.objects.get(id=order_data['id'])
+                    exists = True
+                except PrepareOrder.DoesNotExist:
+                    # Create a new PrepareOrder if it doesn't exist
+                    prepare_order = PrepareOrder.objects.create(
+                        id=order_data['id'],
+                        user=user,
+                        amount=amount,
+                        currency="INR",
+                        receipt=intent,
+                        notes=order_data,
+                        partial_payment=False
+                    )
+                    exists = False
+
+                # If you need to update even if it exists, add this:
+                if exists:
+                    prepare_order.user = user
+                    prepare_order.amount = amount
+                    prepare_order.currency = "INR"
+                    prepare_order.receipt = intent
+                    prepare_order.notes = order_data
+                    prepare_order.partial_payment = False
+                    prepare_order.save()
+        except Exception as e:
+            print("DB Error:", e)
+            return api_failed("Failed to save order to DB", headers={"code": 1009}).secure().rest()
 
         # 4) 응답 반환
         return (

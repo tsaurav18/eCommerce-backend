@@ -13,17 +13,37 @@ class ProductImageSerializer(serializers.ModelSerializer):
         if request and obj.image:
             return request.build_absolute_uri(obj.image.url)
         return None
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductVariant
+        fields = [
+            "id",
+            "name",
+            "price",
+            "discount_price",
+            "stock",
+            "sold_count",
+        ]
+
 class ProductSerializer(serializers.ModelSerializer):
     main_image = serializers.SerializerMethodField()
     additional_images = ProductImageSerializer(many=True, read_only=True)
     discount_price = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
     brand_name = serializers.CharField(source="brand.brand_name", read_only=True)
-
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    description_file = serializers.SerializerMethodField()
+    ingredients = serializers.CharField(required=False, allow_blank=True)
+    how_to_use = serializers.CharField(required=False, allow_blank=True)
     class Meta:
         model = Product
         fields = [
             "id", "name", "slug", "description",
+            "description_file",  # URL of uploaded PDF, if any
+            "ingredients",
+            "how_to_use",
+            "variants",
             "price", "discount_price",
             "stock", "sold_count",
             "main_image", "additional_images",
@@ -44,6 +64,13 @@ class ProductSerializer(serializers.ModelSerializer):
         return int(obj.price)
     def get_discount_price(self, obj):
         return int(obj.discount_price)
+
+    def get_description_file(self, obj):
+        """Return absolute URL for the PDF, or None."""
+        request = self.context.get('request')
+        if request and obj.description_file:
+            return request.build_absolute_uri(obj.description_file.url)
+        return None
 class ReviewImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReviewImage
@@ -144,14 +171,19 @@ class CartItemSerializer(serializers.ModelSerializer):
 class OrderItemSerializer(serializers.ModelSerializer):
     # This field will include full product details using the ProductSerializer
     product_details = ProductSerializer(source='product', read_only=True)
+    variant_id = serializers.IntegerField(required=False, allow_null=True)
+    variant_name = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
 
     def get_price(self, obj):
         return int(obj.price)
 
+    def get_variant_name(self, obj):
+        return obj.variant.name if obj.variant else None
     class Meta:
         model = OrderItem
-        fields = ["product", "product_details", "quantity", "price"]
+        fields = ["product", "product_details", "variant_id",       # ✅ New input
+            "variant_name", "quantity", "price"]
 
 class SaveOrderSerializer(serializers.ModelSerializer):
     order_ref = serializers.PrimaryKeyRelatedField(queryset=PrepareOrder.objects.all())  # ✅ Link to PrepareOrder
@@ -167,7 +199,22 @@ class SaveOrderSerializer(serializers.ModelSerializer):
         order = Orders.objects.create(**validated_data)
 
         for item_data in order_items_data:
-            OrderItem.objects.create(order=order, **item_data)
+            variant_id = item_data.pop("variant_id", None)
+            variant = None
+
+            if variant_id:
+                try:
+                    variant = ProductVariant.objects.get(id=variant_id)
+                except ProductVariant.DoesNotExist:
+                    raise serializers.ValidationError(
+                        f"Variant with id {variant_id} does not exist."
+                    )
+
+            OrderItem.objects.create(
+                order=order,
+                variant=variant,
+                **item_data
+            )
 
         return order
 

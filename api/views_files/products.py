@@ -29,13 +29,14 @@ class GetProductListView(viewsets.GenericViewSet, mixins.CreateModelMixin):
 
             # If subcategory is empty or "all", return products from all subcategories
             if not subcategory_name or subcategory_name.lower() == "all":
-                products = Product.objects.prefetch_related("reviews__user").filter(category__in=[parent_category, *subcategories])
+                products = Product.objects.prefetch_related("reviews__user", "variants").filter(category__in=[parent_category, *subcategories])
+
             else:
                 # Find the exact subcategory
                 subcategory = subcategories.filter(name=subcategory_name).first()
                 if not subcategory:
                     return api_failed("Invalid subcategory", headers={"code": 1002}).secure().rest()
-                products = Product.objects.prefetch_related("reviews__user").filter(category=subcategory)
+                products = Product.objects.prefetch_related("reviews__user", "variants").filter(category=subcategory)
 
             # Fetch reviews for these products
             reviews = Review.objects.filter(product__in=products)

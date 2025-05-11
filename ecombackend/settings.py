@@ -35,7 +35,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == 'False'
 
-ALLOWED_HOSTS = ['*', 'tsaurav18.pythonanywhere.com']
+ALLOWED_HOSTS = ['*', 'duhappi.pythonanywhere.com']
 
 CORS_ALLOW_ALL_ORIGINS=True
 # Application definition
@@ -97,12 +97,20 @@ WSGI_APPLICATION = "ecombackend.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-        'OPTIONS': {
-                    'timeout': 20,  # 20 seconds timeout for SQLite
-                },
-    }
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.getenv("DB_DEFAULT_NAME"),
+        'USER': os.getenv("DB_DEFAULT_USER"),
+        'PASSWORD': os.getenv("DB_DEFAULT_PASS"),
+        'HOST': os.getenv("DB_DEFAULT_HOST"),
+        'PORT': os.getenv("DB_DEFAULT_PORT"),
+    },
+    # "sqlite": {
+    #     "ENGINE": "django.db.backends.sqlite3",
+    #     "NAME": BASE_DIR / "db.sqlite3",
+    #     'OPTIONS': {
+    #                 'timeout': 20,  # 20 seconds timeout for SQLite
+    #             },
+    # }
 }
 
 

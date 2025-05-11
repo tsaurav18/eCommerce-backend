@@ -1,10 +1,9 @@
-<<<<<<< HEAD
+
 asgiref==3.8.1
 Django==4.2.20
 python-dotenv==1.0.1
 sqlparse==0.5.3
 typing_extensions==4.12.2
-=======
 aiobotocore @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_bba52b0nnu/croot/aiobotocore_1701291516116/work
 aiohttp @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_b1m9c8aqie/croot/aiohttp_1707342290832/work
 aioitertools @ file:///tmp/build/80754af9/aioitertools_1607109665762/work
@@ -382,4 +381,4 @@ zict @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_29a3x
 zipp @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_31jm3q76eq/croot/zipp_1704206913245/work
 zope.interface @ file:///Users/cbousseau/work/recipes/ci_py311/zope.interface_1678055276546/work
 zstandard @ file:///Users/cbousseau/work/recipes/ci_py311_2/zstandard_1678996192313/work
->>>>>>> f6c51de64b65dd24b7e7ec5cb83065fb7baae404
+
