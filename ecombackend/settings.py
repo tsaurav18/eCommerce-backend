@@ -102,7 +102,7 @@ DATABASES = {
         'NAME': os.getenv("DB_DEFAULT_NAME"),
         'USER': os.getenv("DB_DEFAULT_USER"),
         'PASSWORD': os.getenv("DB_DEFAULT_PASS"),
-        'HOST': os.getenv("DB_DEFAULT_HOST"),
+        "HOST": os.getenv("DB_DEFAULT_HOST", "13.209.221.76"),
         'PORT': os.getenv("DB_DEFAULT_PORT"),
     },
     # "sqlite": {
