@@ -36,7 +36,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == 'False'
 
-ALLOWED_HOSTS = ['*', 'duhappi.pythonanywhere.com']
+ALLOWED_HOSTS = ['*', '13.209.221.76']
 
 CORS_ALLOW_ALL_ORIGINS=True
 # Application definition
