@@ -138,19 +138,23 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',  # Frontend URL
-    'https://ecommerce-uffk.vercel.app'
+    'https://ecommerce-uffk.vercel.app',
+    'http://13.209.221.76:8000'
 ]
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-signature',
 ]
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = 'ko-KR'
 
-TIME_ZONE = "UTC"
+TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_L10N = True
+
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
