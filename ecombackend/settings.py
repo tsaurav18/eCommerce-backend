@@ -34,9 +34,9 @@ print("os.getenv(db name)", os.getenv("DB_DEFAULT_NAME"))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG") == 'False'
+DEBUG = False
 
-ALLOWED_HOSTS = ['*', '13.209.221.76', 'https://ecommerce-uffk.vercel.app']
+ALLOWED_HOSTS = ['duhappi.com', 'www.duhappi.com', '13.209.221.76', 'https://ecommerce-uffk.vercel.app']
 
 CORS_ALLOW_ALL_ORIGINS=True
 # Application definition
