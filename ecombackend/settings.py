@@ -140,6 +140,8 @@ AUTH_PASSWORD_VALIDATORS = [
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',  # Frontend URL
     'https://ecommerce-uffk.vercel.app',
+    'https://duhappi.com',
+    'https://www.duhappi.com',
     'http://13.209.221.76:8000',
 
 ]
