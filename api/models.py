@@ -73,7 +73,7 @@ class Category(models.Model):
 class Brand(models.Model):
     brand_name = models.CharField(max_length=255, unique=True)
     slug = models.SlugField(max_length=255, unique=True, blank=True)
-    main_image = models.ImageField(upload_to="media/brands/", blank=True, null=True)
+    main_image = models.ImageField(upload_to="brands/", blank=True, null=True)
     slogan = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -111,7 +111,7 @@ class Product(models.Model):
 
     stock = models.PositiveIntegerField(default=0)
     sold_count = models.PositiveIntegerField(default=0)
-    main_image = models.ImageField(upload_to='media/products/')
+    main_image = models.ImageField(upload_to='products/')
     brand = models.ForeignKey(Brand, on_delete=models.SET_NULL, null=True, blank=True, related_name="products")
 
     is_active = models.BooleanField(default=True)
@@ -155,7 +155,7 @@ class ProductVariant(models.Model):
         return f"{self.product.name} — {self.name}"
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="additional_images")
-    image = models.ImageField(upload_to='media/products/')
+    image = models.ImageField(upload_to='products/')
     class Meta:
         db_table = 'product_image'
     def __str__(self):
@@ -177,7 +177,7 @@ class Review(models.Model):
 
 class ReviewImage(models.Model):
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField(upload_to='media/reviews/')
+    image = models.ImageField(upload_to='reviews/')
 
     class Meta:
         db_table = 'review_image'

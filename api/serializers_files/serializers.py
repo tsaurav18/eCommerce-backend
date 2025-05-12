@@ -55,6 +55,7 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_main_image(self, obj):
         request = self.context.get('request')
         if request and obj.main_image:
+            print("obj.main_image.url", obj.main_image.url)
             full_url = request.build_absolute_uri(obj.main_image.url)
             print("Generated Image URL:", full_url)  # Debugging print statement
             return full_url
@@ -63,8 +64,10 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_price(self, obj):
         return int(obj.price)
     def get_discount_price(self, obj):
-        return int(obj.discount_price)
-
+        if obj.discount_price:
+            return int(obj.discount_price)
+        else:
+            return None
     def get_description_file(self, obj):
         """Return absolute URL for the PDF, or None."""
         request = self.context.get('request')

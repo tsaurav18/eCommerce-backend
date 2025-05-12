@@ -182,7 +182,7 @@ class VisaService(models.Model):
     title       = models.CharField(max_length=128)
     description = models.TextField()
     # If you store images locally:
-    image       = models.ImageField(upload_to="media/visa_services/", blank=True, null=True)
+    image       = models.ImageField(upload_to="visa_services/", blank=True, null=True)
     # or if you prefer external URLs:
     # image_url = models.URLField(blank=True, null=True)
 

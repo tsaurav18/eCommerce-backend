@@ -35,8 +35,8 @@ print("os.getenv(db name)", os.getenv("DB_DEFAULT_NAME"))
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG") == False
-
+DEBUG = os.getenv("DEBUG", "True").lower() in ("1","true","yes")
+print("DEBUG>>>>>", DEBUG)
 ALLOWED_HOSTS = ['*','13.209.221.76', 'https://ecommerce-uffk.vercel.app']
 
 CORS_ALLOW_ALL_ORIGINS=True
@@ -164,11 +164,11 @@ USE_TZ = False
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 MEDIA_URL = "/media/"  # Use `/media/` instead of `/products/`
-MEDIA_ROOT = os.path.join(BASE_DIR, "")
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "static/")
-print("MEDIA_ROOT", MEDIA_ROOT)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
