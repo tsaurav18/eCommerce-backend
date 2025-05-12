@@ -57,7 +57,7 @@ class ProductSerializer(serializers.ModelSerializer):
         if request and obj.main_image:
             full_url = request.build_absolute_uri(obj.main_image.url)
             print("Generated Image URL:", full_url)  # Debugging print statement
-            return full_url.replace('/media/media/', '/media/')
+            return full_url
         return None
 
     def get_price(self, obj):
