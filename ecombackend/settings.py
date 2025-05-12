@@ -36,7 +36,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == 'False'
 
-ALLOWED_HOSTS = ['duhappi.com', 'www.duhappi.com', '13.209.221.76', 'https://ecommerce-uffk.vercel.app']
+ALLOWED_HOSTS = ['13.209.221.76', 'https://ecommerce-uffk.vercel.app']
 
 CORS_ALLOW_ALL_ORIGINS=True
 # Application definition
