@@ -26,7 +26,7 @@ else:
 print("ECOM_ENV", ECOM_ENV)
 
 load_dotenv(dotenv_path)
-print("os.getenv(db name)", os.getenv("DB_DEFAULT_NAME"))
+# print("os.getenv(db name)", os.getenv("DB_DEFAULT_NAME"))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/

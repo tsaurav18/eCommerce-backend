@@ -26,4 +26,4 @@ urlpatterns = [
 if settings.DEBUG:  # Serve media files during development
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-print("UrlPatterns", settings.MEDIA_URL, settings.MEDIA_ROOT,urlpatterns)
+

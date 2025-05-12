@@ -104,16 +104,16 @@ class SendOtpView(viewsets.GenericViewSet, mixins.CreateModelMixin):
         otp_entry = EmailOTP.objects.create(email=email, otp=otp)
 
         # Prepare email content
-        subject = "Your Eleve OTP Verification Code"
+        subject = "Your duhappi OTP Verification Code"
         message = (
             f"Hello,\n\n"
-            f"Thank you for signing up with Eleve.\n\n"
+            f"Thank you for signing up with duhappi.\n\n"
             f"Your One Time Password (OTP) is: {otp}\n\n"
             f"Please enter this code on our website to verify your email address. "
             f"This code is valid for 10 minutes.\n\n"
             f"If you did not request this code, please ignore this email or contact our support.\n\n"
             f"Best regards,\n"
-            f"The Eleve Team"
+            f"The duhappi Team"
         )
         from_email = "tsaurav1711@gmail.com"  # Change to your sender email
         recipient_list = [email]
