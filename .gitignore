@@ -1,2 +1,5 @@
 development.env
-production.env*.pyc
+production.env
+*.pyc
+__pycache__/
+*.py[cod]
