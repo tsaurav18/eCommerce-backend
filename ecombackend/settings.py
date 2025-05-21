@@ -36,6 +36,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True").lower() in ("1","true","yes")
+# DEBUG= True
 print("DEBUG>>>>>", DEBUG)
 ALLOWED_HOSTS = ['*','13.209.221.76', 'https://ecommerce-uffk.vercel.app','https://api.duhappi.com', '127.0.0.1', 'localhost']
 
