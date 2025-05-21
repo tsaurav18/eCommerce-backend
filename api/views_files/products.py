@@ -175,23 +175,23 @@ class GetBrandProductsView(viewsets.GenericViewSet, mixins.CreateModelMixin):
             print("brand", brand)
             # Base query: Get products of this brand
             products_query = Product.objects.filter(brand=brand).prefetch_related("reviews__images", "reviews__user", "additional_images", "variants")
-            print("products_query", products_query)
+            # print("products_query", products_query)
             # Filter by subcategory if it's not "all"
             if subcategory_name.lower() != "all":
                 parent_category = Category.objects.filter(name=subcategory_name).first()
-                print("parent_category>>>>>>", parent_category)
+                # print("parent_category>>>>>>", parent_category)
                 if not parent_category:
                     return api_failed("Sub category not found", headers={"code": 1002}).secure().rest()
                 if parent_category:
                     child_subcategories = Category.objects.filter(parent=parent_category)
-                    print("parent_category", parent_category)
+                    # print("parent_category", parent_category)
                     if not child_subcategories:
                         return api_failed("Invalid subcategory", headers={"code": 1004}).secure().rest()
                     products_query = Product.objects.filter(Q(brand=brand) &
                                                             (Q(category=parent_category) | Q(category__in=child_subcategories))
                     ).prefetch_related("reviews__images", "reviews__user", "additional_images","variants")
 
-                print("products_query in if", products_query)
+                # print("products_query in if", products_query)
             # Fetch reviews for these products
             reviews = Review.objects.filter(product__in=products_query)
 
